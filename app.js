@@ -1,11 +1,12 @@
 /*jshint -W069 */ 
 /*jshint -W104*/ 
+const util = require("util");
 const Gitana = require("gitana");
 const async = require("async");
 const cliArgs = require('command-line-args');
 const getUsage = require('command-line-usage');
 const fs = require("fs");
-const util = require("./lib/util");
+const localUtil = require("./lib/util");
 const Logger = require('basic-logger');
 const log = new Logger({
 	showMillis: false,
@@ -29,6 +30,7 @@ var option_prompt = options["prompt"];
 var option_useCredentialsFile = options["use-credentials-file"];
 var option_gitanaFilePath = options["gitana-file-path"] || "./gitana.json";
 var option_branchId = options["branch"] || "master";
+var option_query = options["query"];
 var option_queryFilePath = options["query-file-path"];
 var option_touch = options["touch"] || false;
 var option_create = options["create"] || false;
@@ -48,7 +50,7 @@ var option_password = options["password"];
 var gitanaConfig = JSON.parse("" + fs.readFileSync(option_gitanaFilePath));
 if (option_useCredentialsFile) {
     // override gitana.json credentials with username and password properties defined in the cloudcms-cli tool local db
-    var rootCredentials = JSON.parse("" + fs.readFileSync(path.join(util.homeDirectory(), ".cloudcms", "credentials.json")));
+    var rootCredentials = JSON.parse("" + fs.readFileSync(path.join(localUtil.homeDirectory(), ".cloudcms", "credentials.json")));
     gitanaConfig.username = rootCredentials.username;
     gitanaConfig.password = rootCredentials.password;
 } else if (option_prompt) {
@@ -61,11 +63,12 @@ if (option_useCredentialsFile) {
 } // else don't override credentials
 
 // if listing types
-if (option_test)
-{
+if (option_test) {
     handleTest();
 } else if (option_touch) {
     handleTouch();
+} else if (option_query) {
+    handleQuery();
 } else if (option_ping) {
     handlePing();
 } else if (option_create) {
@@ -86,14 +89,14 @@ return;
 function handleTest() {
     log.debug("handleTest()");
 
-    util.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
         if (err)
         {
-            log.debug("Error connecting to Cloud CMS branch: " + err);
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
             return;
         }
 
-        log.info("connected to project: \"" + project.title + "\" branch: " + branch.title || branch._doc);
+        log.info("connected to project: \"" + project.title + "\" branch: \"" + (branch.title || branch._doc) + "\"");
     });    
 
 }
@@ -126,10 +129,10 @@ function handlePing() {
 function handleFindNodeByPath() {
     log.debug("handleFindNodeByPath()");
 
-    util.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
         if (err)
         {
-            log.debug("Error connecting to Cloud CMS branch: " + err);
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
             return;
         }
 
@@ -143,7 +146,7 @@ function handleFindNodeByPath() {
             log.error(err);
         }).readNode("root", nodePath, {paths: true}).then(function(){
             var node = this;
-            util.enhanceNode(node);
+            localUtil.enhanceNode(node);
             log.info(".then " + JSON.stringify(this,null,2));
         });
     });
@@ -152,10 +155,10 @@ function handleFindNodeByPath() {
 function handleFindNodeById() {
     log.debug("handleFindNodeById()");
 
-    util.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
         if (err)
         {
-            log.debug("Error connecting to Cloud CMS branch: " + err);
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
             return;
         }
 
@@ -169,7 +172,7 @@ function handleFindNodeById() {
             log.error(err);
         }).readNode(nodeId, null, {paths: true}).then(function(){
             var node = this;
-            util.enhanceNode(node);
+            localUtil.enhanceNode(node);
             log.info(".then " + JSON.stringify(this,null,2));
         });
     });
@@ -178,10 +181,10 @@ function handleFindNodeById() {
 function handleNodePathCreate() {
     log.debug("handleNodePathCreate()");
 
-    util.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
         if (err)
         {
-            log.debug("Error connecting to Cloud CMS branch: " + err);
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
             return;
         }
 
@@ -198,7 +201,7 @@ function handleNodePathCreate() {
             log.error(err);
         }).createNode(nodeData).then(function(){
             var node = this;
-            util.enhanceNode(node);
+            localUtil.enhanceNode(node);
             log.info(".then " + JSON.stringify(this,null,2));
         });
     });
@@ -207,10 +210,10 @@ function handleNodePathCreate() {
 function handleTouch() {
     log.debug("handleTouch()");
 
-    util.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
         if (err)
         {
-            log.debug("Error connecting to Cloud CMS branch: " + err);
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
             return;
         }
 
@@ -240,6 +243,55 @@ function handleTouch() {
     });
 }
 
+function handleQuery() {
+    log.debug("handleQuery()");
+
+    localUtil.getBranch(gitanaConfig, option_branchId, function(err, branch, platform, stack, domain, primaryDomain, project) {
+        if (err)
+        {
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
+            return;
+        }
+
+        log.info("connected to project: \"" + project.title + "\" and branch: " + branch.title || branch._doc);
+        
+        var context = {
+            branchId: option_branchId,
+            branch: branch,
+            queryFilePath: option_queryFilePath,
+            query: require(option_queryFilePath),
+            nodes: []
+        };
+        
+        async.waterfall([
+            async.ensureAsync(async.apply(getNodesFromQuery, context)),
+            async.ensureAsync(reportNodes)
+        ], function (err, context) {
+            if (err)
+            {
+                log.error("Error: " + err);
+                return;
+            }
+            
+            log.info("Query complete");
+            return;
+        });                
+    });
+}
+
+function reportNodes(context, callback) {
+    log.info("reportNodes()");
+
+    for(var i = 0; i < context.nodes.length; i++) {
+        var node = context.nodes[i];
+        // util.enhanceNode(node);
+        log.info(node._doc);
+        // log.info(node._doc + "\n" + console.log(util.inspect(node, {depth: 1, colors: true, compact: false})));
+    }
+
+    callback(null, context);
+}
+
 function getNodesFromQuery(context, callback) {
     log.info("getNodesFromQuery()");
 
@@ -250,7 +302,7 @@ function getNodesFromQuery(context, callback) {
     // }).each(function() {
     //     var node = this;
     //     util.enhanceNode(node);
-    //     nodes.push(node);
+    //     context.nodes.push(node);
     }).then(function() {
         context.nodes = this.asArray();
         callback(null, context);
@@ -297,6 +349,7 @@ function getOptions() {
         {name: 'node-id',               alias: 'e', type: String,  description: 'node id'},        
         {name: 'data-file-path',        alias: 'd', type: String,  description: 'path to a json file to use as the data for node created by --create option when connecting'},
         {name: 'test',                  alias: 't', type: Boolean, description: 'test connection to cloud cms'},
+        {name: 'query',                 alias: 'q', type: Boolean, description: 'run a query. use with --query-file-path option'},
         {name: 'gitana-file-path',      alias: 'g', type: String,  description: 'path to gitana.json file to use when connecting. defaults to ./gitana.json'},
         {name: 'branch',                alias: 'b', type: String,  description: 'branch id (not branch name!) to write content to. branch id or "master". Default is "master"'},
         {name: 'query-file-path',       alias: 'y', type: String,  description: 'path to a json file defining the query'},
