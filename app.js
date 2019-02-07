@@ -37,7 +37,14 @@ var option_queryFilePath = options["query-file-path"];
 var option_touch = options["touch"] || false;
 var option_fixbranch = options["fixbranch"] || false;
 var option_resetBranchTip = options["reset-branch-tip"] || false;
+var option_resetBranchRoot = options["reset-branch-root"] || false;
+var option_reactivateRelease = options["reactivate-release"] || false;
+var option_listBranchChangesets = options["list-branch-changesets"] || false;
+var option_listBranchChangesetContent = options["list-branch-changeset-content"] || false;
 var option_branchTip = options["branch-tip"] || null;
+var option_changeset = options["changeset"] || null;
+var option_release = options["release"] || null;
+var option_range = options["range"] || "1";
 var option_deletebranch = options["delete-branch"] || false;
 var option_create = options["create"] || false;
 var option_ping = options["ping"] || false;
@@ -77,6 +84,14 @@ if (option_test) {
     fixBranch();
 } else if (option_resetBranchTip) {
     resetBranchTip();
+} else if (option_resetBranchRoot) {
+    resetBranchRoot();
+} else if (option_listBranchChangesets) {
+    listBranchChangesets();
+} else if (option_reactivateRelease) {
+    reactivateRelease();
+} else if (option_listBranchChangesetContent) {
+    listBranchChangesetContent();
 } else if (option_deletebranch) {
     deletebranch();
 } else if (option_query) {
@@ -251,6 +266,83 @@ function handleTouch() {
     });
 }
 
+function listBranchChangesets() {
+    log.debug("listBranchChangesets()");
+
+    log.debug("option_changeset: " + option_changeset);
+    log.debug("option_range: " + option_range);
+
+    if (!option_changeset) {
+        log.error("You must specify --changeset");
+        return;
+    }
+
+    localUtil.getBranch(gitanaConfig, option_branchId, function (err, branch, platform, stack, domain, primaryDomain, project) {
+        if (err) {
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
+            return;
+        }
+
+        log.info("connected to project: \"" + project.title + "\" and branch: " + branch.title || branch._doc);
+
+        Chain(branch).then(function () {
+            var branch = this;
+            log.info("Branch getRepositoryId: " + branch.getRepositoryId());
+            log.info("Branch tip: " + branch.getTip());
+
+            branch.getRepository().readChangeset(option_changeset).then(function () {
+                var changeset = this;
+                log.info("changeset: " + JSON.stringify(changeset, null, 2));
+
+                return;
+            });
+        });
+    });
+}
+
+function listBranchTipContent() {
+    log.debug("listBranchTipContent()");
+
+}
+
+function reactivateRelease() {
+    log.debug("reactivateRelease()");
+
+    if (!option_release) {
+        log.error("You must specify --release");
+        return;
+    }
+
+    localUtil.getBranch(gitanaConfig, option_branchId, function (err, branch, platform, stack, domain, primaryDomain, project) {
+        if (err) {
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
+            return;
+        }
+
+        log.info("connected to project: \"" + project.title + "\" and branch: \"" + branch.title + "\" " + branch._doc);
+
+        Chain(branch).then(function () {
+            var branch = this;
+            log.info("Branch getRepositoryId: " + branch.getRepositoryId());
+            log.info("Branch tip: " + branch.getTip());
+
+            branch.getRepository().readRelease(option_release).then(function () {
+                var release = this;                
+                log.info("release: " + JSON.stringify(release, null, 2));
+
+                release.executed = false;
+                release.released = false;
+
+                release.update().then(function () {
+                    var release = this;
+                    log.info(JSON.stringify(release, null, 2));
+                    return;
+                });    
+            });
+        });
+    });
+}
+
 function resetBranchTip() {
     log.debug("resetBranchTip()");
 
@@ -298,66 +390,55 @@ function resetBranchTip() {
         );
             
     });
+}
 
-    // var downloadNode = r.downloadNode = function(platform, filePath, repositoryId, branchId, nodeId, attachmentId, callback) {
-    //     // load asset from server, begin constructing the URI
-    //     var uri = "/repositories/" + repositoryId + "/branches/" + branchId + "/nodes/" + nodeId;
-    //     if (attachmentId) {
-    //         uri += "/attachments/" + attachmentId;
-    //     }
-    //     // force content disposition information to come back
-    //     uri += "?a=true";
+function resetBranchRoot() {
+    log.debug("resetBranchRoot()");
 
-    //     var agent = http.globalAgent;
-    //     if (process.env.GITANA_PROXY_SCHEME === "https")
-    //     {
-    //         agent = https.globalAgent;
-    //     }
+    if (!option_changeset) {
+        log.error("You must specify --changeset");
+        return;
+    }
 
-    //     var fileWriteStream = fs.createWriteStream(filePath);
-    //     var body = "";
+    if (!option_branchId) {
+        log.error("You must specify --branch (or -b)");
+        return;
+    }
 
-    //     var URL = asURL(process.env.GITANA_PROXY_SCHEME, process.env.GITANA_PROXY_HOST, process.env.GITANA_PROXY_PORT) + uri;
-    //     request({
-    //         "method": "GET",
-    //         "url": URL,
-    //         "qs": {},
-    //         "headers": {
-    //             Authorization: platform.getDriver().getHttpHeaders().Authorization
-    //         },
-    //         "timeout": process.defaultHttpTimeoutMs,
-    //         "agent": agent
-    //     }).on('response', function (response) {
-    //         if (response.statusCode >= 200 && response.statusCode <= 204) {
-    //             response.pipe(fileWriteStream).on("close", function (err) {
-    //                 if (err)
-    //                 {
-    //                     callback(err);
-    //                     return;
-    //                 }
-    //             });
+    if (!option_prompt && (!option_userName || !option_password)) {
+        log.error("You must use either --prompt or --username and --password to admin credentials");
+        return;
+    }
 
-    //             response.on('data', function (chunk) {
-    //                 fileWriteStream.write(body);
-    //             });
+    localUtil.getBranch(gitanaConfig, option_branchId, function (err, branch, platform, stack, domain, primaryDomain, project) {
+        if (err) {
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
+            return;
+        }
 
-    //             response.on('end', function () {
+        log.info("connected to project: \"" + project.title + "\" and branch: " + branch.title || branch._doc);
 
-    //                 fileWriteStream.on('end', function() {
-    //                     try { fileWriteStream.end(); } catch(e) { }
-    //                 });
+        // POST /repositories/b2b734bac0c566826f59/branches/b8f35e78486bdec6a7cc/admin/reset?root=74461:a23d761dc0d41777a1b7
+        var url = gitanaConfig.baseURL + "/repositories/" + branch.getRepositoryId() + "/branches/" + branch._doc + "/admin/reset?root=" + option_changeset;
+        log.info("url = " + url);
 
-    //             }).on('error', function (err) {
-    //                 callback(err);                    
-    //             }).on('end', function (err) {
-    //                 callback();
-    //             });
-    //         }
-    //     }).on("error", function (err) {
-    //         try { fileWriteStream.end(); } catch(e) { }
-    //         console.log("Pipe error: " + err);
-    //     }).end();
-    // };
+        request({
+                method: "POST",
+                url: url,
+                headers: {
+                    "Authorization": platform.getDriver().http.getBearerAuthorizationHeader()
+                }
+            },
+            function (error, response, body) {
+                if (error || response.statusCode !== 200) {
+                    log.error("error in request " + JSON.stringify(error || {}) + " " + JSON.stringify(body));
+                } else {
+                    log.info("completed request: " + JSON.stringify(body));
+                }
+            }
+        );
+            
+    });
 }
 
 function deletebranch() {
@@ -389,7 +470,6 @@ function deletebranch() {
                 });
             });
         });
-
     });
 }
 
@@ -549,13 +629,49 @@ function getOptions() {
         {
             name: 'reset-branch-tip',
             type: Boolean,
-            description: 'reset a branch tip to the tip id specified in --branch-tip'
+            description: 'reset a branch tip to the changeset id specified in --branch-tip'
+        },
+        {
+            name: 'reset-branch-root',
+            type: Boolean,
+            description: 'reset a branch root changeset specified in --changeset'
+        },
+        {
+            name: 'reactivate-release',
+            type: Boolean,
+            description: 'restore a release branch to a state where it can be released again'
+        },
+        {
+            name: 'list-branch-changesets',
+            type: Boolean,
+            description: 'list branch tips. show all tips unless --starting-branch-tip specified'
+        },
+        {
+            name: 'list-branch-changeset-content',
+            type: Boolean,
+            description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset and for each tip after up to number of tips in --range'
+        },
+        {
+            name: 'range',
+            type: String,
+            default: "1",
+            description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset. Default is 1'
+        },
+        {
+            name: 'changeset',
+            type: String,
+            description: 'changeset id to'
         },
         {
             name: 'branch-tip',
             type: String,
             description: 'branch tip id'
         },
+        {
+            name: 'release',
+            type: String,
+            description: 'release id'
+        },        
         {
             name: 'delete-branch',
             type: Boolean,
