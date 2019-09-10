@@ -137,12 +137,12 @@ function handlePing() {
     auth = "Basic " + new Buffer(option_userName + ":" + option_password).toString("base64");
 
     request({
-            method: "GET",
-            url: url,
-            headers: {
-                "Authorization": auth
-            }
-        },
+        method: "GET",
+        url: url,
+        headers: {
+            "Authorization": auth
+        }
+    },
         function (error, response, body) {
             if (error || response.statusCode !== 200) {
                 log.error("error in request " + JSON.stringify(error || {}) + " " + JSON.stringify(body));
@@ -196,14 +196,38 @@ function handleFindNodeById() {
         log.info("find node with id: " + nodeId);
 
         Chain(branch).trap(function (err) {
+            console.log("local branch error trap");
             log.error(err);
-        }).readNode(nodeId, null, {
-            paths: true
+        }).queryNodes({
+            _doc: {
+                "$in": [nodeId]
+            }
         }).then(function () {
-            var node = this;
-            localUtil.enhanceNode(node);
+            var nodes = this.asArray();
+            context.nodes = nodes;
+            context.node = nodes[0] || null;
+            // localUtil.enhanceNode(node);
             log.info(".then " + JSON.stringify(this, null, 2));
         });
+
+        // Chain(branch).trap(function (err) {
+        //     console.log("local branch error trap");
+        //     log.error(err);
+        // }).readNode(nodeId, null, {
+        //     paths: true
+        // }).then(function () {
+        //     var node = this;
+        //     localUtil.enhanceNode(node);
+        //     log.info(".then " + JSON.stringify(this, null, 2));
+        // });
+
+        // Chain(branch).readNode(nodeId, null, {
+        //     paths: true
+        // }).then(function () {
+        //     var node = this;
+        //     localUtil.enhanceNode(node);
+        //     log.info(".then " + JSON.stringify(this, null, 2));
+        // });
     });
 }
 
@@ -256,7 +280,7 @@ function handleTouch() {
 
         async.waterfall([
             async.ensureAsync(async.apply(getNodesFromQuery, context)),
-                async.ensureAsync(touchNodes)
+            async.ensureAsync(touchNodes)
         ], function (err, context) {
             if (err) {
                 log.error("Error: " + err);
@@ -330,7 +354,7 @@ function reactivateRelease() {
             log.info("Branch tip: " + branch.getTip());
 
             branch.getRepository().readRelease(option_release).then(function () {
-                var release = this;                
+                var release = this;
                 log.info("release: " + JSON.stringify(release, null, 2));
 
                 release.executed = false;
@@ -340,7 +364,7 @@ function reactivateRelease() {
                     var release = this;
                     log.info(JSON.stringify(release, null, 2));
                     return;
-                });    
+                });
             });
         });
     });
@@ -377,12 +401,12 @@ function resetBranchTip() {
         log.info("url = " + url);
 
         request({
-                method: "POST",
-                url: url,
-                headers: {
-                    "Authorization": platform.getDriver().http.getBearerAuthorizationHeader()
-                }
-            },
+            method: "POST",
+            url: url,
+            headers: {
+                "Authorization": platform.getDriver().http.getBearerAuthorizationHeader()
+            }
+        },
             function (error, response, body) {
                 if (error || response.statusCode !== 200) {
                     log.error("error in request " + JSON.stringify(error || {}) + " " + JSON.stringify(body));
@@ -391,7 +415,7 @@ function resetBranchTip() {
                 }
             }
         );
-            
+
     });
 }
 
@@ -426,12 +450,12 @@ function resetBranchRoot() {
         log.info("url = " + url);
 
         request({
-                method: "POST",
-                url: url,
-                headers: {
-                    "Authorization": platform.getDriver().http.getBearerAuthorizationHeader()
-                }
-            },
+            method: "POST",
+            url: url,
+            headers: {
+                "Authorization": platform.getDriver().http.getBearerAuthorizationHeader()
+            }
+        },
             function (error, response, body) {
                 if (error || response.statusCode !== 200) {
                     log.error("error in request " + JSON.stringify(error || {}) + " " + JSON.stringify(body));
@@ -440,7 +464,7 @@ function resetBranchRoot() {
                 }
             }
         );
-            
+
     });
 }
 
@@ -526,7 +550,7 @@ function handleQuery() {
 
         async.waterfall([
             async.ensureAsync(async.apply(getNodesFromQuery, context)),
-                async.ensureAsync(reportNodes)
+            async.ensureAsync(reportNodes)
         ], function (err, context) {
             if (err) {
                 log.error("Error: " + err);
@@ -595,7 +619,7 @@ function getNodesFromQuery(context, callback) {
     var query = context.query;
 
     context.branch.queryNodes(query, {
-        limit: -1
+        limit: 50
         // }).each(function() {
         //     var node = this;
         //     util.enhanceNode(node);
@@ -854,28 +878,28 @@ function handleOptions() {
 
 function printHelp(optionsList) {
     console.log(getUsage([{
-            header: 'Cloud CMS Script',
-            content: 'Touch nodes a Cloud CMS project branch.'
+        header: 'Cloud CMS Script',
+        content: 'Touch nodes a Cloud CMS project branch.'
+    },
+    {
+        header: 'Options',
+        optionList: optionsList
+    },
+    {
+        header: 'Examples',
+        content: [{
+            desc: '1. test connection to cloud cms',
         },
         {
-            header: 'Options',
-            optionList: optionsList
+            desc: 'node app.js --gitana-file-path ./gitana.json --test'
         },
         {
-            header: 'Examples',
-            content: [{
-                    desc: '1. test connection to cloud cms',
-                },
-                {
-                    desc: 'node app.js --gitana-file-path ./gitana.json --test'
-                },
-                {
-                    desc: '1. touch nodes found by query',
-                },
-                {
-                    desc: 'node app.js --gitana-file-path ./gitana.json --touch --query-file-path ./touch-query.json'
-                }
-            ]
+            desc: '1. touch nodes found by query',
+        },
+        {
+            desc: 'node app.js --gitana-file-path ./gitana.json --touch --query-file-path ./touch-query.json'
         }
+        ]
+    }
     ]));
 }

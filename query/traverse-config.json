@@ -1,0 +1,10 @@
+{
+    "associations": {
+        "a:child": "INCOMING",
+        "ers:programme-association": "ANY"
+    },
+    "depth": 2,
+    "types": [
+        "n:node"
+    ]
+}
