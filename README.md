@@ -10,6 +10,10 @@
     node app -g ./gitana.json -q --query-file-path ./query.json -b master
     node app -g ./gitana-ers.json -q --query-file-path ./query.json -b 768ad1ac43330dbc16a2
 
+### traverse a node:
+
+    node app -g ./gitana-ers.json --traverse --query-file-path ./query/traverse-config.json -b 768ad1ac43330dbc16a2 --node-id c839f15f6cfbdd1c8045
+
 ### detach a branch from a release:
 
     node app -g ./gitana.json -x -b {branch-id}
