@@ -33,6 +33,7 @@ var option_useCredentialsFile = options["use-credentials-file"];
 var option_gitanaFilePath = options["gitana-file-path"] || "./gitana.json";
 var option_branchId = options["branch"] || "master";
 var option_query = options["query"];
+var option_traverse = options["traverse"];
 var option_queryFilePath = options["query-file-path"];
 var option_touch = options["touch"] || false;
 var option_fixbranch = options["fixbranch"] || false;
@@ -96,6 +97,8 @@ if (option_test) {
     deletebranch();
 } else if (option_query) {
     handleQuery();
+} else if (option_traverse) {
+    handleTraverse();
 } else if (option_ping) {
     handlePing();
 } else if (option_create) {
@@ -536,6 +539,43 @@ function handleQuery() {
     });
 }
 
+function handleTraverse() {
+    log.debug("handleTraverse()");
+
+    localUtil.getBranch(gitanaConfig, option_branchId, function (err, branch, platform, stack, domain, primaryDomain, project) {
+        if (err) {
+            log.debug("Error connecting to Cloud CMS branch: " + JSON.stringify(err, null, 2));
+            return;
+        }
+
+        log.info("connected to project: \"" + project.title + "\" and branch: \"" + branch.title + "\" " + branch._doc);
+
+        var context = {
+            branchId: option_branchId,
+            branch: branch,
+            queryFilePath: option_queryFilePath,
+            query: { _doc: option_nodeId },
+            traverseQuery: require(option_queryFilePath),
+            nodeId: option_nodeById,
+            nodes: []
+        };
+
+        async.waterfall([
+            async.ensureAsync(async.apply(getNodesFromQuery, context)),
+            async.ensureAsync(getNodesFromTraverse, context),
+            async.ensureAsync(reportNodes)
+        ], function (err, context) {
+            if (err) {
+                log.error("Error: " + err);
+                return;
+            }
+
+            log.info("Traverse complete");
+            return;
+        });
+    });
+}
+
 function reportNodes(context, callback) {
     log.info("reportNodes()");
 
@@ -566,6 +606,40 @@ function getNodesFromQuery(context, callback) {
     });
 }
 
+function getNodesFromTraverse(context, callback) {
+    log.info("getNodesFromTraverse()");
+
+    var query = context.query;
+    var traverseQuery = context.traverseQuery;
+    var node = context.nodes[0];
+
+    Chain(node).traverse(traverseQuery).then(function () {
+        var result = this;
+
+        result.nodes().then(function () {
+            var resultNodes = this.asArray();
+            log.info(JSON.stringify(resultNodes, null, 2));
+
+            context.nodes = resultNodes;
+
+            callback(null, context);
+        });
+
+        // log.info(JSON.stringify(resultNodes, null, 2));
+        // context.nodes = resultNodes;
+
+        // result.nodes().count(function (count) {
+        //     log.info("Count: " + count);
+        // });
+
+        // var associations = result.associations().then(function () {
+        //     var asso
+        // });
+
+        // callback(null, context);
+    });
+}
+
 function touchNodes(context, callback) {
     log.info("touchNodes()");
 
@@ -592,172 +666,177 @@ function touchNodes(context, callback) {
 
 function getOptions() {
     return [{
-            name: 'help',
-            alias: 'h',
-            type: Boolean
-        },
-        {
-            name: 'verbose',
-            alias: 'v',
-            type: Boolean,
-            description: 'verbose logging'
-        },
-        {
-            name: 'prompt',
-            alias: 'p',
-            type: Boolean,
-            description: 'prompt for username and password. overrides gitana.json credentials'
-        },
-        {
-            name: 'use-credentials-file',
-            alias: 'c',
-            type: Boolean,
-            description: 'use credentials file ~/.cloudcms/credentials.json. overrides gitana.json credentials'
-        },
-        {
-            name: 'touch',
-            alias: 'u',
-            type: Boolean,
-            description: 'touch nodes in query results'
-        },
-        {
-            name: 'fixbranch',
-            alias: 'x',
-            type: Boolean,
-            description: 'fixbranch'
-        },
-        {
-            name: 'reset-branch-tip',
-            type: Boolean,
-            description: 'reset a branch tip to the changeset id specified in --branch-tip'
-        },
-        {
-            name: 'reset-branch-root',
-            type: Boolean,
-            description: 'reset a branch root changeset specified in --changeset'
-        },
-        {
-            name: 'reactivate-release',
-            type: Boolean,
-            description: 'restore a release branch to a state where it can be released again'
-        },
-        {
-            name: 'list-branch-changesets',
-            type: Boolean,
-            description: 'list branch tips. show all tips unless --starting-branch-tip specified'
-        },
-        {
-            name: 'list-branch-changeset-content',
-            type: Boolean,
-            description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset and for each tip after up to number of tips in --range'
-        },
-        {
-            name: 'range',
-            type: String,
-            default: "1",
-            description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset. Default is 1'
-        },
-        {
-            name: 'changeset',
-            type: String,
-            description: 'changeset id to'
-        },
-        {
-            name: 'branch-tip',
-            type: String,
-            description: 'branch tip id'
-        },
-        {
-            name: 'release',
-            type: String,
-            description: 'release id'
-        },        
-        {
-            name: 'delete-branch',
-            type: Boolean,
-            description: 'delete a branch. this will first detach the branch from any release it may be attached to.'
-        },
-        {
-            name: 'create',
-            alias: 'r',
-            type: Boolean,
-            description: 'create node by path'
-        },
-        {
-            name: 'ping',
-            type: Boolean,
-            description: 'ping the api server'
-        },
-        {
-            name: 'node-by-path',
-            alias: 'n',
-            type: Boolean,
-            description: 'find a node by path specified in --node-path'
-        },
-        {
-            name: 'node-path',
-            alias: 'o',
-            type: String,
-            description: 'node path'
-        },
-        {
-            name: 'node-by-id',
-            alias: 'i',
-            type: Boolean,
-            description: 'find a node by ID specified in --node-id'
-        },
-        {
-            name: 'node-id',
-            alias: 'e',
-            type: String,
-            description: 'node id'
-        },
-        {
-            name: 'data-file-path',
-            alias: 'd',
-            type: String,
-            description: 'path to a json file to use as the data for node created by --create option when connecting'
-        },
-        {
-            name: 'test',
-            alias: 't',
-            type: Boolean,
-            description: 'test connection to cloud cms'
-        },
-        {
-            name: 'query',
-            alias: 'q',
-            type: Boolean,
-            description: 'run a query. use with --query-file-path option'
-        },
-        {
-            name: 'gitana-file-path',
-            alias: 'g',
-            type: String,
-            description: 'path to gitana.json file to use when connecting. defaults to ./gitana.json'
-        },
-        {
-            name: 'branch',
-            alias: 'b',
-            type: String,
-            description: 'branch id (not branch name!) to write content to. branch id or "master". Default is "master"'
-        },
-        {
-            name: 'query-file-path',
-            alias: 'y',
-            type: String,
-            description: 'path to a json file defining the query'
-        },
-        {
-            name: 'username',
-            type: String,
-            description: 'username'
-        },
-        {
-            name: 'password',
-            type: String,
-            description: 'password'
-        }
+        name: 'help',
+        alias: 'h',
+        type: Boolean
+    },
+    {
+        name: 'verbose',
+        alias: 'v',
+        type: Boolean,
+        description: 'verbose logging'
+    },
+    {
+        name: 'prompt',
+        alias: 'p',
+        type: Boolean,
+        description: 'prompt for username and password. overrides gitana.json credentials'
+    },
+    {
+        name: 'use-credentials-file',
+        alias: 'c',
+        type: Boolean,
+        description: 'use credentials file ~/.cloudcms/credentials.json. overrides gitana.json credentials'
+    },
+    {
+        name: 'touch',
+        alias: 'u',
+        type: Boolean,
+        description: 'touch nodes in query results'
+    },
+    {
+        name: 'fixbranch',
+        alias: 'x',
+        type: Boolean,
+        description: 'fixbranch'
+    },
+    {
+        name: 'reset-branch-tip',
+        type: Boolean,
+        description: 'reset a branch tip to the changeset id specified in --branch-tip'
+    },
+    {
+        name: 'reset-branch-root',
+        type: Boolean,
+        description: 'reset a branch root changeset specified in --changeset'
+    },
+    {
+        name: 'reactivate-release',
+        type: Boolean,
+        description: 'restore a release branch to a state where it can be released again'
+    },
+    {
+        name: 'list-branch-changesets',
+        type: Boolean,
+        description: 'list branch tips. show all tips unless --starting-branch-tip specified'
+    },
+    {
+        name: 'list-branch-changeset-content',
+        type: Boolean,
+        description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset and for each tip after up to number of tips in --range'
+    },
+    {
+        name: 'range',
+        type: String,
+        default: "1",
+        description: 'list content ids (_doc) for updates in branch tips starting at tip specified in --changeset. Default is 1'
+    },
+    {
+        name: 'changeset',
+        type: String,
+        description: 'changeset id to'
+    },
+    {
+        name: 'branch-tip',
+        type: String,
+        description: 'branch tip id'
+    },
+    {
+        name: 'release',
+        type: String,
+        description: 'release id'
+    },
+    {
+        name: 'delete-branch',
+        type: Boolean,
+        description: 'delete a branch. this will first detach the branch from any release it may be attached to.'
+    },
+    {
+        name: 'create',
+        alias: 'r',
+        type: Boolean,
+        description: 'create node by path'
+    },
+    {
+        name: 'ping',
+        type: Boolean,
+        description: 'ping the api server'
+    },
+    {
+        name: 'node-by-path',
+        alias: 'n',
+        type: Boolean,
+        description: 'find a node by path specified in --node-path'
+    },
+    {
+        name: 'node-path',
+        alias: 'o',
+        type: String,
+        description: 'node path'
+    },
+    {
+        name: 'node-by-id',
+        alias: 'i',
+        type: Boolean,
+        description: 'find a node by ID specified in --node-id'
+    },
+    {
+        name: 'node-id',
+        alias: 'e',
+        type: String,
+        description: 'node id'
+    },
+    {
+        name: 'data-file-path',
+        alias: 'd',
+        type: String,
+        description: 'path to a json file to use as the data for node created by --create option when connecting'
+    },
+    {
+        name: 'test',
+        alias: 't',
+        type: Boolean,
+        description: 'test connection to cloud cms'
+    },
+    {
+        name: 'query',
+        alias: 'q',
+        type: Boolean,
+        description: 'run a query. use with --query-file-path option'
+    },
+    {
+        name: 'traverse',
+        type: Boolean,
+        description: 'run a traverse api call. use with --query-file-path option to define traversal config'
+    },
+    {
+        name: 'gitana-file-path',
+        alias: 'g',
+        type: String,
+        description: 'path to gitana.json file to use when connecting. defaults to ./gitana.json'
+    },
+    {
+        name: 'branch',
+        alias: 'b',
+        type: String,
+        description: 'branch id (not branch name!) to write content to. branch id or "master". Default is "master"'
+    },
+    {
+        name: 'query-file-path',
+        alias: 'y',
+        type: String,
+        description: 'path to a json file defining the query'
+    },
+    {
+        name: 'username',
+        type: String,
+        description: 'username'
+    },
+    {
+        name: 'password',
+        type: String,
+        description: 'password'
+    }
     ];
 }
 
