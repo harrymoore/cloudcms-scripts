@@ -10,7 +10,7 @@
     "gitana": "^1.0.305",
     "prompt-sync": "^4.1.7",
     "request": "^2.88.0",
-    "underscore": "^1.9.1",
+    "underscore": "^1.12.1",
     "url": "^0.11.0",
     "wrench": "*",
     "write-json-file": "^2.3.0"
